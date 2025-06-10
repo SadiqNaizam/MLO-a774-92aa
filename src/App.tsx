@@ -1,96 +1,79 @@
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster as Sonner } from "@/components/ui/sonner"; // Assuming this is for react-hot-toast or similar
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-// --- START: CONSOLE INTERCEPTION SCRIPT ---
-const targetOrigin = '*'; // <-- IMPORTANT: SET YOUR PARENT ORIGIN
-// const targetOrigin = '*'; // Use '*' ONLY for local development if origins differ
+import ChatInterfacePage from "./pages/ChatInterfacePage";
+import LoginPage from "./pages/LoginPage";
+import RegistrationPage from "./pages/RegistrationPage";
+import SettingsPage from "./pages/SettingsPage";
+import NotFound from "./pages/NotFound"; // Assuming NotFound.tsx exists
 
-// Store original console methods
-const originalConsole = {
-    log: console.log.bind(console),
-    error: console.error.bind(console),
-    warn: console.warn.bind(console),
-    info: console.info.bind(console),
+const queryClient = new QueryClient();
+
+// A simple mock for auth status - replace with actual auth context/logic
+const isAuthenticated = () => {
+  // For demonstration, assume login sets a simple flag or token
+  // In a real app, check for a valid token in localStorage or context
+  // This is a placeholder, actual login logic is in LoginPage.
+  // For routing, we might need a more robust check here or a protected route component.
+  // For now, LoginPage will handle redirection upon successful login.
+  return !!localStorage.getItem('mockAuthToken'); // Example: after login, set this token
 };
 
-// Function to format arguments for postMessage
-function formatLogArguments(args) {
-    // (Keep the function as you defined it)
-    return args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) {
-            try {
-                return JSON.parse(JSON.stringify(arg));
-            } catch (e) {
-                return '[Unserializable Object]';
-            }
-        }
-        return String(arg);
-    }).join(' ');
-}
+// Placeholder: Update LoginPage to set 'mockAuthToken' on successful login
+// e.g., localStorage.setItem('mockAuthToken', 'true'); navigate('/chat');
 
-// Override console methods
-console.log = (...args) => {
-    originalConsole.log(...args);
-    try {
-        window.parent.postMessage({ type: 'console', level: 'log', message: formatLogArguments(args), timestamp: new Date().toISOString() }, targetOrigin);
-    } catch (e) { originalConsole.error("Error posting log message:", e); }
+const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+  if (!isAuthenticated()) {
+    // Redirect them to the /login page, but save the current location they were
+    // trying to go to so we can send them along after they login.
+    return <Navigate to="/login" replace />;
+  }
+  return children;
 };
-
-console.error = (...args) => {
-    originalConsole.error(...args);
-    try {
-        const message = formatLogArguments(args);
-        const stack = (args[0] instanceof Error) ? args[0].stack : new Error().stack;
-        window.parent.postMessage({ type: 'console', level: 'error', message: message, stack: stack, timestamp: new Date().toISOString() }, targetOrigin);
-    } catch (e) { originalConsole.error("Error posting error message:", e); }
-};
-
-console.warn = (...args) => {
-    originalConsole.warn(...args);
-    try {
-        window.parent.postMessage({ type: 'console', level: 'warn', message: formatLogArguments(args), timestamp: new Date().toISOString() }, targetOrigin);
-    } catch (e) { originalConsole.error("Error posting warn message:", e); }
-};
-
-console.info = (...args) => {
-    originalConsole.info(...args);
-    try {
-        window.parent.postMessage({ type: 'console', level: 'info', message: formatLogArguments(args), timestamp: new Date().toISOString() }, targetOrigin);
-    } catch (e) { originalConsole.error("Error posting info message:", e); }
-};
-
-// Catch unhandled errors and rejections
-window.addEventListener('error', (event) => {
-    originalConsole.error('Unhandled global error:', event.error || event.message);
-    try {
-        window.parent.postMessage({ type: 'console', level: 'error', message: `Unhandled global error: ${event.message}`, errorDetails: event.error ? formatLogArguments([event.error]) : null, stack: event.error ? event.error.stack : null, filename: event.filename, lineno: event.lineno, colno: event.colno, timestamp: new Date().toISOString() }, targetOrigin);
-    } catch (e) { originalConsole.error("Error posting global error message:", e); }
-});
-
-window.addEventListener('unhandledrejection', (event) => {
-    originalConsole.error('Unhandled promise rejection:', event.reason);
-    try {
-        window.parent.postMessage({ type: 'console', level: 'error', message: `Unhandled promise rejection: ${formatLogArguments([event.reason])}`, reason: formatLogArguments([event.reason]), stack: event.reason instanceof Error ? event.reason.stack : null, timestamp: new Date().toISOString() }, targetOrigin);
-    } catch (e) { originalConsole.error("Error posting rejection message:", e); }
-});
-
-console.log('Console interceptor initialized.');
-// --- END: CONSOLE INTERCEPTION SCRIPT ---
 
 
 const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegistrationPage />} />
+          
+          {/* Protected Routes */}
+          <Route 
+            path="/chat" 
+            element={
+              <ProtectedRoute>
+                <ChatInterfacePage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/settings" 
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Default route: redirect to login if not authenticated, else to chat */}
+          <Route 
+            path="/" 
+            element={isAuthenticated() ? <Navigate to="/chat" replace /> : <Navigate to="/login" replace />} 
+          />
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
 );
 
 export default App;
